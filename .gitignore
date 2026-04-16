@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Database (runtime artifact — not source)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+
+# OS
+.DS_Store
+Thumbs.db
