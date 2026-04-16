@@ -107,6 +107,8 @@ async def run_scraper_job() -> None:
                 if passes_hard_filters(listing):
                     newly_added.append(listing)
 
+        # Sort and capture scores while still inside the session
+        newly_added.sort(key=compute_score, reverse=True)
         session.commit()
 
     logger.info(
@@ -116,8 +118,6 @@ async def run_scraper_job() -> None:
 
     # ── Notify ────────────────────────────────────────────────────────────────
     if newly_added:
-        # Sort by desirability score descending
-        newly_added.sort(key=compute_score, reverse=True)
         await send_notification(newly_added)
 
         # Mark as notified

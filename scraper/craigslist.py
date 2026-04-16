@@ -86,7 +86,7 @@ class CraigslistScraper(BaseScraper):
         logger.info("Craigslist: found %d listings on search page", len(listings))
 
         new_listings = [l for l in listings if l.external_id not in known_ids]
-        logger.info("Craigslist: %d new → fetching detail pages (max %d)",
+        logger.info("Craigslist: %d new -> fetching detail pages (max %d)",
                     len(new_listings), self.max_detail_pages)
 
         for listing in new_listings[: self.max_detail_pages]:

@@ -141,8 +141,7 @@ async def dashboard(request: Request, db: DBSession = Depends(get_db)):
         "next_scrape_minutes": Config.SCRAPE_INTERVAL_MINUTES,
     }
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", context={
         "listings": qualifying,
         "stats": stats,
         "config": {

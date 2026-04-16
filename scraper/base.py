@@ -141,7 +141,7 @@ class BaseScraper(ABC):
         # Fetch detail pages for new listings only (rate-limit friendly)
         new_listings = [l for l in listings if l.external_id not in known_ids]
         logger.info(
-            "%s: %d total, %d new → fetching detail pages (max %d)",
+            "%s: %d total, %d new -> fetching detail pages (max %d)",
             self.SOURCE, len(listings), len(new_listings), self.max_detail_pages,
         )
 
