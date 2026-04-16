@@ -1,0 +1,10 @@
+[build]
+# Railway auto-detects the Dockerfile in the repo root
+dockerfile = "Dockerfile"
+
+[deploy]
+startCommand = "bash startup.sh"
+healthcheckPath = "/api/stats"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

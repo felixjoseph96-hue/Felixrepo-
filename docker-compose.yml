@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the SQLite database between container restarts
+      - apt_data:/data
+    environment:
+      DATABASE_URL: sqlite:////data/apartments.db
+      HEADLESS: "true"
+      SCRAPE_INTERVAL_MINUTES: "30"
+      LOG_FILE: "false"
+      # ── Paste your keys here or use a .env file ──
+      # RENTCAST_API_KEY: your_key_here
+      # SMTP_USER: you@gmail.com
+      # SMTP_PASSWORD: your_app_password
+      # NOTIFY_EMAIL: you@gmail.com
+    restart: unless-stopped
+
+volumes:
+  apt_data:

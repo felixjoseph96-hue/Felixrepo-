@@ -2,44 +2,47 @@
 """
 Entry point for the Arlington Apartment Finder.
 
-Usage
------
-# Install dependencies first (once):
-#   pip install -r requirements.txt
-#   playwright install chromium
+Local usage
+-----------
+    pip install -r requirements.txt
+    playwright install chromium      # only needed for Apts.com / Zillow scrapers
+    cp .env.example .env             # fill in RENTCAST_API_KEY at minimum
+    python run.py                    # dashboard at http://localhost:8000
 
-# Copy and fill in your settings:
-#   cp .env.example .env
+One-shot scrape (no web server):
+    python scheduler.py
 
-# Start the app:
-#   python run.py
-
-# The dashboard will be available at http://localhost:8000
-# The scraper runs automatically every SCRAPE_INTERVAL_MINUTES minutes.
-# You can also trigger a manual scrape via the "↻ Scrape Now" button.
-
-# To run a one-shot scrape without the web UI:
-#   python scheduler.py
+Seed 40 demo listings instantly:
+    python seed.py
 """
 import logging
+import os
 import sys
 
 import uvicorn
 
+# Cloud platforms (Railway, Render, Fly.io) inject PORT at runtime
+PORT = int(os.getenv("PORT", "8000"))
+
+# Log to stdout only when running in a container (LOG_FILE=false)
+handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+if os.getenv("LOG_FILE", "true").lower() != "false":
+    try:
+        handlers.append(logging.FileHandler("apartment_finder.log"))
+    except OSError:
+        pass  # read-only filesystem (some containers)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("apartment_finder.log"),
-    ],
+    handlers=handlers,
 )
 
 if __name__ == "__main__":
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
-        port=8000,
+        port=PORT,
         reload=False,
         log_level="info",
     )
