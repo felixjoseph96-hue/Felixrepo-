@@ -4,10 +4,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, Integer, String, Text,
-    UniqueConstraint, create_engine,
+    Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text,
+    UniqueConstraint, create_engine, text,
 )
-from sqlalchemy.orm import DeclarativeBase, Session
+from sqlalchemy.orm import DeclarativeBase, Session, relationship
 from sqlalchemy.pool import StaticPool
 
 from config import Config
@@ -26,7 +26,7 @@ class Listing(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
 
     # ── Source ──────────────────────────────────────────────────────────────
-    source = Column(String(50), nullable=False)       # "apartments_com" | "zillow"
+    source = Column(String(50), nullable=False)       # "apartments_com" | "zillow" | "craigslist"
     external_id = Column(String(300), nullable=False)
     url = Column(String(1000), nullable=False)
 
@@ -43,8 +43,8 @@ class Listing(Base):
 
     # ── Listing details ───────────────────────────────────────────────────────
     title = Column(String(500))
-    price_min = Column(Integer)   # monthly rent (low end if range)
-    price_max = Column(Integer)   # monthly rent (high end if range)
+    price_min = Column(Integer)
+    price_max = Column(Integer)
     bedrooms = Column(Float)
     bathrooms = Column(Float)
     sqft_min = Column(Integer)
@@ -57,13 +57,23 @@ class Listing(Base):
     has_gym = Column(Boolean, default=False)
     natural_light_score = Column(Integer, default=0)  # 0–5
 
+    # ── User interaction ──────────────────────────────────────────────────────
+    is_favorited = Column(Boolean, default=False)
+    notes = Column(Text, default="")
+
     # ── Workflow ──────────────────────────────────────────────────────────────
-    listed_at = Column(DateTime)                       # date site shows
+    listed_at = Column(DateTime)
     scraped_at = Column(DateTime, default=datetime.utcnow)
     first_seen_at = Column(DateTime, default=datetime.utcnow)
     is_new = Column(Boolean, default=True)
     is_notified = Column(Boolean, default=False)
-    detail_fetched = Column(Boolean, default=False)    # full detail page visited
+    detail_fetched = Column(Boolean, default=False)
+
+    # ── Relationships ─────────────────────────────────────────────────────────
+    price_history = relationship(
+        "PriceHistory", back_populates="listing",
+        order_by="PriceHistory.recorded_at", cascade="all, delete-orphan"
+    )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     @property
@@ -84,21 +94,22 @@ class Listing(Base):
 
     @property
     def price(self) -> Optional[int]:
-        """Return lowest price for display / filtering."""
         return self.price_min or self.price_max
 
     @property
     def sqft(self) -> Optional[int]:
         return self.sqft_min or self.sqft_max
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, include_detail: bool = False) -> dict:
+        d = {
             "id": self.id,
             "source": self.source,
             "url": self.url,
             "title": self.title,
             "address": self.address,
             "neighborhood": self.neighborhood,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
             "price_min": self.price_min,
             "price_max": self.price_max,
             "bedrooms": self.bedrooms,
@@ -111,13 +122,41 @@ class Listing(Base):
             "has_gym": self.has_gym,
             "natural_light_score": self.natural_light_score,
             "photos": self.photos[:3],
-            "amenities": self.amenities,
+            "amenities": self.amenities[:6],
             "is_new": self.is_new,
+            "is_favorited": self.is_favorited,
             "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
             "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
-            # score is injected by the API layer to avoid circular import
-            "score": None,
+            "score": None,  # injected by API layer
         }
+        if include_detail:
+            d.update({
+                "photos": self.photos,
+                "amenities": self.amenities,
+                "description": self.description,
+                "notes": self.notes or "",
+                "price_history": [
+                    {
+                        "price_min": h.price_min,
+                        "price_max": h.price_max,
+                        "recorded_at": h.recorded_at.isoformat(),
+                    }
+                    for h in self.price_history
+                ],
+            })
+        return d
+
+
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"), nullable=False)
+    price_min = Column(Integer)
+    price_max = Column(Integer)
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+    listing = relationship("Listing", back_populates="price_history")
 
 
 # ─── Engine / session helpers ─────────────────────────────────────────────────
@@ -131,6 +170,22 @@ engine = create_engine(
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    _migrate()
+
+
+def _migrate() -> None:
+    """Add columns introduced after the initial schema without dropping data."""
+    new_columns = [
+        ("listings", "is_favorited", "BOOLEAN DEFAULT 0"),
+        ("listings", "notes",        "TEXT DEFAULT ''"),
+    ]
+    with engine.connect() as conn:
+        for table, col, col_def in new_columns:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
 
 
 def get_session() -> Session:

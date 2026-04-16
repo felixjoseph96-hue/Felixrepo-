@@ -105,7 +105,7 @@ def _build_email(listings: List[Listing]) -> MIMEMultipart:
         lines.append(
             f"{i}. {l.title or l.address}\n"
             f"   {price} | {l.bedrooms}bd/{l.bathrooms}ba | {l.sqft_min or '?'} sqft\n"
-            f"   Metro: {l.nearest_metro or '?'} ({l.metro_distance_miles:.2f} mi "
+            f"   Metro: {l.nearest_metro or '?'} ({f'{l.metro_distance_miles:.2f}' if l.metro_distance_miles else '?'} mi "
             f"| {'walkable' if l.is_walkable else 'not walkable'})\n"
             f"   Gym: {'yes' if l.has_gym else 'unknown'} | "
             f"Natural light: {l.natural_light_score}/5\n"
@@ -163,6 +163,8 @@ async def send_notification(listings: List[Listing]) -> bool:
     try:
         await aiosmtplib.send(
             msg,
+            sender=Config.SMTP_USER,
+            recipients=[Config.NOTIFY_EMAIL],
             hostname=Config.SMTP_HOST,
             port=Config.SMTP_PORT,
             username=Config.SMTP_USER,

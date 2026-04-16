@@ -4,431 +4,689 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Arlington Apartment Finder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<!-- ══ HEADER ═══════════════════════════════════════════════════════════════ -->
 <header>
   <div class="header-inner">
-    <div class="header-title">
-      <span class="logo">🏢</span>
+    <div class="brand">
+      <span class="brand-icon">🏢</span>
       <div>
-        <h1>Arlington Apartment Finder</h1>
-        <p class="subtitle">Rosslyn · Clarendon · Ballston &nbsp;|&nbsp; 2bd/2ba · ≤${{ config.max_price|int|format_num }} · {{ config.min_sqft|format_num }}+ sqft</p>
+        <div class="brand-title">Arlington Apartment Finder</div>
+        <div class="brand-sub">Rosslyn · Clarendon · Ballston &nbsp;|&nbsp; 2bd/2ba · ≤${{ config.max_price|format_num }} · {{ config.min_sqft|format_num }}+ sqft</div>
       </div>
     </div>
+    <div class="header-stats">
+      <div class="hstat"><span id="stat-total">{{ stats.total }}</span><small>total</small></div>
+      <div class="hstat new"><span id="stat-new">{{ stats.new_today }}</span><small>new today</small></div>
+      <div class="hstat fav"><span id="stat-favs">{{ stats.favorites }}</span><small>saved</small></div>
+    </div>
     <div class="header-actions">
-      <button id="btn-scrape" class="btn btn-primary" onclick="triggerScrape()">
-        ↻ Scrape Now
-      </button>
+      <button id="btn-scrape" class="btn btn-ghost" onclick="triggerScrape()">↻ Scrape</button>
+      <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export</button>
     </div>
   </div>
 </header>
 
-<!-- ── Stats bar ───────────────────────────────────────────────────────────── -->
-<div class="stats-bar">
-  <div class="stat-card">
-    <div class="stat-num">{{ stats.qualifying }}</div>
-    <div class="stat-label">Qualifying Listings</div>
+<!-- ══ CONTROLS ══════════════════════════════════════════════════════════════ -->
+<div class="controls-bar">
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-view="grid" onclick="switchView('grid')">
+      All <span class="tab-count" id="tab-count">{{ stats.qualifying }}</span>
+    </button>
+    <button class="tab-btn" data-view="favorites" onclick="switchView('favorites')">
+      ♥ Saved <span class="tab-count" id="tab-fav-count">{{ stats.favorites }}</span>
+    </button>
+    <button class="tab-btn" data-view="map" onclick="switchView('map')">
+      🗺 Map
+    </button>
   </div>
-  <div class="stat-card">
-    <div class="stat-num new-badge">{{ stats.new_today }}</div>
-    <div class="stat-label">New Today</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num">{{ stats.walkable }}</div>
-    <div class="stat-label">Metro Walkable</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num">{{ stats.has_gym }}</div>
-    <div class="stat-label">Has Gym</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num small">
-      {% if stats.last_scrape %}
-        {{ stats.last_scrape.strftime('%I:%M %p') }}
-      {% else %}
-        Never
-      {% endif %}
-    </div>
-    <div class="stat-label">Last Scraped</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num small">{{ stats.next_scrape_minutes }}m</div>
-    <div class="stat-label">Scrape Interval</div>
-  </div>
-</div>
 
-<!-- ── Filter bar ──────────────────────────────────────────────────────────── -->
-<div class="filter-bar">
-  <label class="filter-group">
-    <span>Source</span>
-    <select id="f-source" onchange="applyFilters()">
-      <option value="">All</option>
+  <!-- Filters -->
+  <div class="filters">
+    <select id="f-source" onchange="applyFilters()" title="Source">
+      <option value="">All Sources</option>
       <option value="apartments_com">Apartments.com</option>
       <option value="zillow">Zillow</option>
+      <option value="craigslist">Craigslist</option>
+      <option value="rentcast">RentCast</option>
     </select>
-  </label>
 
-  <label class="filter-group">
-    <span>Max Rent</span>
-    <select id="f-price" onchange="applyFilters()">
-      <option value="">Any (≤$3,500)</option>
+    <select id="f-price" onchange="applyFilters()" title="Max Rent">
+      <option value="">Any Price</option>
       <option value="2500">≤ $2,500</option>
       <option value="3000">≤ $3,000</option>
       <option value="3250">≤ $3,250</option>
       <option value="3500">≤ $3,500</option>
     </select>
-  </label>
 
-  <label class="filter-group">
-    <span>Sort</span>
-    <select id="f-sort" onchange="applyFilters()">
+    <select id="f-sort" onchange="applyFilters()" title="Sort by">
       <option value="score">Best Match</option>
       <option value="price">Lowest Price</option>
       <option value="sqft">Largest</option>
       <option value="newest">Newest</option>
     </select>
-  </label>
 
-  <label class="filter-toggle">
-    <input type="checkbox" id="f-walkable" onchange="applyFilters()" />
-    <span>Metro walkable only</span>
-  </label>
+    <label class="toggle-filter" title="Metro walkable only">
+      <input type="checkbox" id="f-walkable" onchange="applyFilters()" />
+      <span>🚇 Walkable</span>
+    </label>
 
-  <label class="filter-toggle">
-    <input type="checkbox" id="f-gym" onchange="applyFilters()" />
-    <span>Has gym</span>
-  </label>
+    <label class="toggle-filter" title="Has gym / fitness center">
+      <input type="checkbox" id="f-gym" onchange="applyFilters()" />
+      <span>🏋 Gym</span>
+    </label>
 
-  <label class="filter-toggle">
-    <input type="checkbox" id="f-new" onchange="applyFilters()" />
-    <span>New only</span>
-  </label>
+    <label class="toggle-filter" title="New listings only">
+      <input type="checkbox" id="f-new" onchange="applyFilters()" />
+      <span>🆕 New</span>
+    </label>
 
-  <label class="filter-group">
-    <span>Min Light Score</span>
-    <select id="f-light" onchange="applyFilters()">
-      <option value="0">Any</option>
-      <option value="1">1+</option>
-      <option value="2">2+</option>
-      <option value="3">3+</option>
+    <select id="f-light" onchange="applyFilters()" title="Min natural light score">
+      <option value="0">Any Light</option>
+      <option value="2">☀️ Light 2+</option>
+      <option value="3">☀️☀️ Light 3+</option>
     </select>
-  </label>
+  </div>
 </div>
 
-<!-- ── Loading / empty states ─────────────────────────────────────────────── -->
-<div id="loading" class="loading" style="display:none;">Loading listings…</div>
-<div id="empty" class="empty-state" style="display:none;">
-  <div class="empty-icon">🔍</div>
-  <h3>No listings match your filters</h3>
-  <p>Try relaxing some filters, or click <strong>↻ Scrape Now</strong> to check for new listings.</p>
-</div>
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════════════ -->
+<div id="app">
 
-<!-- ── Listing grid ────────────────────────────────────────────────────────── -->
-<main id="listing-grid" class="listing-grid">
-  {% for listing in listings %}
-  <article class="listing-card {% if listing.is_new %}is-new{% endif %}"
-           data-id="{{ listing.id }}"
-           data-score="{{ listing|compute_score }}">
+  <!-- Loading skeleton -->
+  <div id="loading-state" style="display:none">
+    <div class="skeleton-grid">
+      {% for _ in range(6) %}
+      <div class="skeleton-card">
+        <div class="sk sk-photo"></div>
+        <div class="sk-body">
+          <div class="sk sk-title"></div>
+          <div class="sk sk-line"></div>
+          <div class="sk sk-line short"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 
-    {% if listing.is_new %}
-      <div class="new-ribbon">NEW</div>
+  <!-- Empty state -->
+  <div id="empty-state" style="display:none">
+    <div class="empty-icon">🔍</div>
+    <h3>No listings match your filters</h3>
+    <p>Try relaxing the filters, or click <strong>↻ Scrape</strong> to check for new listings.</p>
+    {% if not stats.total %}
+    <p style="margin-top:8px;"><strong>Tip:</strong> Run <code>python seed.py</code> to load demo data, or add a <code>RENTCAST_API_KEY</code> to your <code>.env</code> to pull live listings.</p>
     {% endif %}
+  </div>
 
-    <!-- Photo -->
-    <div class="card-photo">
-      {% if listing.photos %}
-        <img src="{{ listing.photos[0] }}" alt="{{ listing.title }}"
-             onerror="this.parentElement.classList.add('no-photo')" />
-      {% else %}
-        <div class="photo-placeholder">🏢</div>
-      {% endif %}
-      <div class="source-badge source-{{ listing.source }}">
-        {{ 'Apts.com' if listing.source == 'apartments_com' else 'Zillow' }}
-      </div>
+  <!-- Grid view -->
+  <main id="grid-view">
+    <div id="listing-grid" class="listing-grid"></div>
+    <div id="load-more-wrap" style="display:none">
+      <button class="btn-load-more" onclick="loadMore()">Load More Listings</button>
+    </div>
+  </main>
+
+  <!-- Map view -->
+  <div id="map-view" style="display:none">
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#38a169"></span>Great match (60%+)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#3182ce"></span>Good match (40%+)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#dd6b20"></span>Fair match</div>
+      <div class="legend-item"><span class="legend-dot metro-legend">M</span>Metro station</div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ══ DETAIL MODAL ══════════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal" role="dialog" aria-modal="true">
+
+    <!-- Photo carousel -->
+    <div class="modal-carousel">
+      <img id="modal-photo-img" src="" alt="Listing photo" />
+      <div id="modal-photo-placeholder" class="carousel-placeholder" style="display:none">🏢</div>
+      <button id="photo-prev" class="carousel-btn prev" onclick="prevPhoto()">&#8249;</button>
+      <button id="photo-next" class="carousel-btn next" onclick="nextPhoto()">&#8250;</button>
+      <span id="photo-counter" class="photo-counter"></span>
     </div>
 
-    <!-- Body -->
-    <div class="card-body">
-      <h2 class="card-title">
-        <a href="{{ listing.url }}" target="_blank" rel="noopener">
-          {{ listing.title or listing.address or 'View Listing' }}
-        </a>
-      </h2>
-      <p class="card-address">{{ listing.address or '' }}</p>
-
-      <!-- Key numbers -->
-      <div class="card-numbers">
-        <div class="number-item price">
-          {% if listing.price_min %}
-            ${{ '{:,}'.format(listing.price_min) }}
-            {% if listing.price_max and listing.price_max != listing.price_min %}
-              – ${{ '{:,}'.format(listing.price_max) }}
-            {% endif %}
-            <small>/mo</small>
-          {% else %}
-            <span class="unknown">Price N/A</span>
-          {% endif %}
-        </div>
-        <div class="number-item">
-          {{ listing.bedrooms|int if listing.bedrooms else '?' }} bd
-          / {{ listing.bathrooms if listing.bathrooms else '?' }} ba
-        </div>
-        <div class="number-item">
-          {% if listing.sqft_min %}
-            {{ '{:,}'.format(listing.sqft_min) }}
-            {% if listing.sqft_max and listing.sqft_max != listing.sqft_min %}
-              – {{ '{:,}'.format(listing.sqft_max) }}
-            {% endif %}
-            sqft
-          {% else %}
-            <span class="unknown">Sqft TBD</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Badges -->
-      <div class="card-badges">
-        {% if listing.is_walkable %}
-          <span class="badge badge-metro">
-            🚇 {{ listing.nearest_metro }}
-            ({{ '%.2f'|format(listing.metro_distance_miles) }} mi)
-          </span>
-        {% else %}
-          <span class="badge badge-no-metro">
-            🚇 {{ listing.nearest_metro or 'Metro' }}
-            ({{ ('%.2f'|format(listing.metro_distance_miles)) if listing.metro_distance_miles else '?' }} mi)
-          </span>
-        {% endif %}
-
-        {% if listing.has_gym %}
-          <span class="badge badge-gym">🏋 Gym</span>
-        {% endif %}
-
-        {% if listing.natural_light_score >= 2 %}
-          <span class="badge badge-light">
-            ☀️ Light {{ listing.natural_light_score }}/5
-          </span>
-        {% elif listing.natural_light_score == 1 %}
-          <span class="badge badge-light-dim">
-            🌤 Light {{ listing.natural_light_score }}/5
-          </span>
-        {% endif %}
-      </div>
-
-      <!-- Amenities preview -->
-      {% if listing.amenities %}
-        <div class="card-amenities">
-          {% for a in listing.amenities[:6] %}
-            <span class="amenity-tag">{{ a }}</span>
-          {% endfor %}
-          {% if listing.amenities|length > 6 %}
-            <span class="amenity-more">+{{ listing.amenities|length - 6 }} more</span>
-          {% endif %}
-        </div>
-      {% endif %}
-
-      <!-- Score + Actions -->
-      <div class="card-footer">
-        <div class="match-score" title="Match score based on metro, gym, light, price, sqft">
-          <div class="score-bar">
-            <div class="score-fill" style="width:{{ listing|compute_score }}%"></div>
-          </div>
-          <span>{{ listing|compute_score }}% match</span>
-        </div>
-        <div class="card-actions">
-          <a href="{{ listing.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-view">
-            View →
-          </a>
-          {% if listing.is_new %}
-            <button class="btn btn-sm btn-dismiss"
-                    onclick="dismissListing({{ listing.id }}, this)">
-              Dismiss
-            </button>
-          {% endif %}
-        </div>
-      </div>
+    <!-- Modal toolbar -->
+    <div class="modal-toolbar">
+      <button id="modal-fav-btn" class="btn-fav-modal" onclick="">♡ Save</button>
+      <a id="modal-ext-link" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-view">
+        View Original ↗
+      </a>
+      <button class="modal-close-btn" onclick="closeModal()" aria-label="Close">✕</button>
     </div>
 
-  </article>
-  {% endfor %}
-</main>
+    <!-- Scrollable body -->
+    <div id="modal-body" class="modal-body">
+      <div class="modal-loading">Loading…</div>
+    </div>
 
-<!-- ── Scrape status toast ─────────────────────────────────────────────────── -->
+  </div>
+</div>
+
+<!-- ══ TOAST ═════════════════════════════════════════════════════════════════ -->
 <div id="toast" class="toast" aria-live="polite"></div>
 
+<!-- ══ SCRIPTS ═══════════════════════════════════════════════════════════════ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// ── Filter / Sort ─────────────────────────────────────────────────────────────
-async function applyFilters() {
-  const source   = document.getElementById('f-source').value;
-  const maxPrice = document.getElementById('f-price').value;
-  const walkable = document.getElementById('f-walkable').checked;
-  const gym      = document.getElementById('f-gym').checked;
-  const newOnly  = document.getElementById('f-new').checked;
-  const minLight = document.getElementById('f-light').value;
-  const sort     = document.getElementById('f-sort').value;
+// ── Constants ─────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 24;
+const METRO_STATIONS = {{ metro_stations | tojson }};
 
-  const params = new URLSearchParams();
-  if (source)   params.set('source', source);
-  if (maxPrice) params.set('max_price', maxPrice);
-  if (walkable) params.set('walkable', 'true');
-  if (gym)      params.set('gym', 'true');
-  if (newOnly)  params.set('new_only', 'true');
-  if (minLight > 0) params.set('min_light', minLight);
-  params.set('sort', sort);
-  params.set('limit', '200');
+// ── App state ─────────────────────────────────────────────────────────────────
+let currentView = 'grid';
+let pageOffset = 0;
+let hasMore = false;
+let allListings = [];
+let leafletMap = null;
+let priceChart = null;
+let modalId = null;
+let photoIndex = 0;
+let photos = [];
 
-  document.getElementById('loading').style.display = 'block';
-  document.getElementById('listing-grid').style.display = 'none';
-  document.getElementById('empty').style.display = 'none';
+// ── Boot ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadFiltersFromStorage();
+  fetchListings(false);
+});
+
+// ── View switching ────────────────────────────────────────────────────────────
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-view="${v}"]`).classList.add('active');
+
+  document.getElementById('grid-view').style.display  = v !== 'map' ? 'block' : 'none';
+  document.getElementById('map-view').style.display   = v === 'map' ? 'block' : 'none';
+
+  if (v === 'map') {
+    initOrRefreshMap();
+  } else {
+    pageOffset = 0;
+    fetchListings(false);
+  }
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function getFilters() {
+  return {
+    source:        document.getElementById('f-source').value,
+    max_price:     document.getElementById('f-price').value,
+    walkable:      document.getElementById('f-walkable').checked,
+    gym:           document.getElementById('f-gym').checked,
+    new_only:      document.getElementById('f-new').checked,
+    min_light:     document.getElementById('f-light').value,
+    sort:          document.getElementById('f-sort').value,
+    favorites_only: currentView === 'favorites',
+  };
+}
+
+function applyFilters() {
+  _saveFilters();
+  pageOffset = 0;
+  fetchListings(false);
+}
+
+function _saveFilters() {
+  const f = getFilters(); delete f.favorites_only;
+  try { localStorage.setItem('apt-filters', JSON.stringify(f)); } catch(_) {}
+}
+
+function loadFiltersFromStorage() {
+  try {
+    const f = JSON.parse(localStorage.getItem('apt-filters') || '{}');
+    if (f.source)    document.getElementById('f-source').value    = f.source;
+    if (f.max_price) document.getElementById('f-price').value     = f.max_price;
+    if (f.walkable)  document.getElementById('f-walkable').checked = f.walkable;
+    if (f.gym)       document.getElementById('f-gym').checked      = f.gym;
+    if (f.new_only)  document.getElementById('f-new').checked      = f.new_only;
+    if (f.min_light) document.getElementById('f-light').value      = f.min_light;
+    if (f.sort)      document.getElementById('f-sort').value       = f.sort;
+  } catch(_) {}
+}
+
+// ── Fetch listings ────────────────────────────────────────────────────────────
+async function fetchListings(append) {
+  if (!append) {
+    showLoading(true);
+    allListings = [];
+  }
+  const f = getFilters();
+  const p = new URLSearchParams();
+  if (f.source)        p.set('source', f.source);
+  if (f.max_price)     p.set('max_price', f.max_price);
+  if (f.walkable)      p.set('walkable', 'true');
+  if (f.gym)           p.set('gym', 'true');
+  if (f.new_only)      p.set('new_only', 'true');
+  if (f.favorites_only)p.set('favorites_only', 'true');
+  if (+f.min_light > 0)p.set('min_light', f.min_light);
+  p.set('sort', f.sort); p.set('limit', PAGE_SIZE); p.set('offset', pageOffset);
 
   try {
-    const res = await fetch('/api/listings?' + params.toString());
+    const res  = await fetch('/api/listings?' + p);
     const data = await res.json();
-    renderListings(data.listings);
-  } catch (e) {
+    allListings = append ? [...allListings, ...data.listings] : data.listings;
+    hasMore = data.has_more;
+    pageOffset += data.listings.length;
+    renderGrid(append);
+    // Update tab counts
+    updateStatBadges();
+  } catch(e) {
+    showLoading(false);
     showToast('Failed to load listings: ' + e.message, 'error');
-  } finally {
-    document.getElementById('loading').style.display = 'none';
   }
 }
 
-function renderListings(listings) {
-  const grid = document.getElementById('listing-grid');
-  const empty = document.getElementById('empty');
+function loadMore() { fetchListings(true); }
 
-  if (!listings.length) {
-    grid.style.display = 'none';
+// ── Render grid ───────────────────────────────────────────────────────────────
+function renderGrid(append) {
+  showLoading(false);
+  const grid    = document.getElementById('listing-grid');
+  const empty   = document.getElementById('empty-state');
+  const loadBtn = document.getElementById('load-more-wrap');
+
+  if (!allListings.length) {
+    grid.innerHTML = '';
     empty.style.display = 'flex';
+    loadBtn.style.display = 'none';
     return;
   }
-
-  grid.innerHTML = listings.map(l => buildCard(l)).join('');
-  grid.style.display = 'grid';
   empty.style.display = 'none';
+  const batch = append ? allListings.slice(-PAGE_SIZE) : allListings;
+  if (append) {
+    grid.insertAdjacentHTML('beforeend', batch.map(buildCard).join(''));
+  } else {
+    grid.innerHTML = batch.map(buildCard).join('');
+  }
+  loadBtn.style.display = hasMore ? 'flex' : 'none';
 }
+
+// ── Card HTML ─────────────────────────────────────────────────────────────────
+const SOURCE_LABELS = {apartments_com:'Apts.com', zillow:'Zillow', craigslist:'Craigslist', rentcast:'RentCast'};
 
 function buildCard(l) {
   const price = l.price_min
-    ? `$${l.price_min.toLocaleString()}${l.price_max && l.price_max !== l.price_min ? ' – $' + l.price_max.toLocaleString() : ''}<small>/mo</small>`
+    ? `<strong>$${l.price_min.toLocaleString()}</strong>${l.price_max && l.price_max !== l.price_min ? '–$'+l.price_max.toLocaleString() : ''}<small>/mo</small>`
     : '<span class="unknown">Price N/A</span>';
 
-  const sqft = l.sqft_min
-    ? `${l.sqft_min.toLocaleString()}${l.sqft_max && l.sqft_max !== l.sqft_min ? ' – ' + l.sqft_max.toLocaleString() : ''} sqft`
-    : '<span class="unknown">Sqft TBD</span>';
+  const sqft = l.sqft_min ? `${l.sqft_min.toLocaleString()}${l.sqft_max&&l.sqft_max!==l.sqft_min?'–'+l.sqft_max.toLocaleString():''} sqft` : '';
 
-  const metroBadge = l.is_walkable
-    ? `<span class="badge badge-metro">🚇 ${l.nearest_metro || 'Metro'} (${(l.metro_distance_miles||0).toFixed(2)} mi)</span>`
-    : `<span class="badge badge-no-metro">🚇 ${l.nearest_metro || 'Metro'} (${l.metro_distance_miles ? l.metro_distance_miles.toFixed(2) : '?'} mi)</span>`;
-
-  const gymBadge = l.has_gym ? `<span class="badge badge-gym">🏋 Gym</span>` : '';
-  const lightBadge = l.natural_light_score >= 2
-    ? `<span class="badge badge-light">☀️ Light ${l.natural_light_score}/5</span>`
-    : l.natural_light_score === 1
-      ? `<span class="badge badge-light-dim">🌤 Light ${l.natural_light_score}/5</span>`
-      : '';
-
-  const amenities = (l.amenities || []).slice(0, 6)
-    .map(a => `<span class="amenity-tag">${a}</span>`).join('');
-
-  const photoHtml = l.photos && l.photos.length
-    ? `<img src="${l.photos[0]}" alt="${l.title || ''}" onerror="this.parentElement.classList.add('no-photo')" />`
-    : `<div class="photo-placeholder">🏢</div>`;
-
-  const sourceLabel = l.source === 'apartments_com' ? 'Apts.com' : 'Zillow';
-  const newRibbon = l.is_new ? '<div class="new-ribbon">NEW</div>' : '';
-  const dismissBtn = l.is_new
-    ? `<button class="btn btn-sm btn-dismiss" onclick="dismissListing(${l.id}, this)">Dismiss</button>`
+  const metro = l.nearest_metro
+    ? `<span class="badge ${l.is_walkable?'badge-metro':'badge-no-metro'}">🚇 ${l.nearest_metro}${l.metro_distance_miles?' ('+l.metro_distance_miles.toFixed(2)+'mi)':''}</span>`
     : '';
+  const gym   = l.has_gym ? `<span class="badge badge-gym">🏋 Gym</span>` : '';
+  const light = l.natural_light_score >= 2 ? `<span class="badge badge-light">☀️ ${l.natural_light_score}/5 light</span>` : '';
+
+  const photo = l.photos && l.photos.length
+    ? `<img src="${l.photos[0]}" alt="" loading="lazy" onerror="this.closest('.card-photo').innerHTML='<div class=no-photo>🏢</div>'" />`
+    : `<div class="no-photo">🏢</div>`;
 
   return `
-<article class="listing-card ${l.is_new ? 'is-new' : ''}" data-id="${l.id}" data-score="${l.score || 0}">
-  ${newRibbon}
-  <div class="card-photo">
-    ${photoHtml}
-    <div class="source-badge source-${l.source}">${sourceLabel}</div>
+<article class="listing-card${l.is_new?' is-new':''}${l.is_favorited?' is-faved':''}" data-id="${l.id}">
+  ${l.is_new ? '<div class="new-ribbon">NEW</div>' : ''}
+  <div class="card-photo" onclick="openModal(${l.id})" role="button" tabindex="0"
+       onkeydown="if(event.key==='Enter')openModal(${l.id})">
+    ${photo}
+    <span class="source-tag source-${l.source}">${SOURCE_LABELS[l.source]||l.source}</span>
   </div>
   <div class="card-body">
-    <h2 class="card-title"><a href="${l.url}" target="_blank" rel="noopener">${l.title || l.address || 'View Listing'}</a></h2>
-    <p class="card-address">${l.address || ''}</p>
-    <div class="card-numbers">
-      <div class="number-item price">${price}</div>
-      <div class="number-item">${l.bedrooms ? Math.floor(l.bedrooms) : '?'} bd / ${l.bathrooms || '?'} ba</div>
-      <div class="number-item">${sqft}</div>
+    <div class="card-top">
+      <h2 class="card-title">
+        <a href="${l.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+           title="${(l.title||l.address||'').replace(/"/g,'&quot;')}">
+          ${l.title || l.address || 'View Listing'}
+        </a>
+      </h2>
+      <button class="fav-btn${l.is_favorited?' on':''}" onclick="toggleFav(${l.id},this)"
+              title="${l.is_favorited?'Remove from saved':'Save listing'}"
+              aria-label="Toggle saved">
+        ${l.is_favorited ? '♥' : '♡'}
+      </button>
     </div>
-    <div class="card-badges">${metroBadge}${gymBadge}${lightBadge}</div>
-    ${amenities ? `<div class="card-amenities">${amenities}</div>` : ''}
+    <p class="card-addr">${l.address||''}</p>
+    <div class="card-nums">
+      <span class="card-price">${price}</span>
+      <span class="card-detail">${l.bedrooms?Math.floor(l.bedrooms):'?'}bd / ${l.bathrooms||'?'}ba</span>
+      ${sqft ? `<span class="card-detail">${sqft}</span>` : ''}
+    </div>
+    <div class="card-badges">${metro}${gym}${light}</div>
     <div class="card-footer">
-      <div class="match-score">
-        <div class="score-bar"><div class="score-fill" style="width:${l.score || 0}%"></div></div>
-        <span>${l.score || 0}% match</span>
+      <div class="score-wrap">
+        <div class="score-bar"><div class="score-fill" style="width:${l.score||0}%"></div></div>
+        <span class="score-val">${l.score||0}%</span>
       </div>
-      <div class="card-actions">
-        <a href="${l.url}" target="_blank" rel="noopener" class="btn btn-sm btn-view">View →</a>
-        ${dismissBtn}
-      </div>
+      <button class="btn btn-sm btn-details" onclick="openModal(${l.id})">Details ›</button>
     </div>
   </div>
 </article>`;
 }
 
-// ── Scrape trigger ────────────────────────────────────────────────────────────
+// ── Map ───────────────────────────────────────────────────────────────────────
+async function initOrRefreshMap() {
+  if (!leafletMap) {
+    leafletMap = L.map('map', { center: [38.889, -77.091], zoom: 14 });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(leafletMap);
+  }
+
+  try {
+    const res  = await fetch('/api/map-data');
+    const data = await res.json();
+
+    // Clear non-tile layers
+    leafletMap.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker) leafletMap.removeLayer(l); });
+
+    // Metro markers
+    data.metro_stations.forEach(s => {
+      const icon = L.divIcon({ html: `<div class="metro-pin">M</div>`, className: '', iconSize: [30, 30] });
+      L.marker([s.lat, s.lon], { icon }).addTo(leafletMap)
+        .bindPopup(`<b>${s.name}</b><br><small>Metro Station</small>`);
+    });
+
+    // Listing markers
+    data.listings.forEach(l => {
+      const color = l.score >= 60 ? '#38a169' : l.score >= 40 ? '#3182ce' : l.score >= 20 ? '#dd6b20' : '#a0aec0';
+      const r = 9 + Math.floor((l.score||0) / 25);
+      const price = l.price_min ? '$'+l.price_min.toLocaleString()+'/mo' : 'N/A';
+      L.circleMarker([l.lat, l.lon], {
+        radius: r, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.88,
+      }).addTo(leafletMap).bindPopup(`
+        <div class="map-popup">
+          <strong>${(l.title||l.address||'').slice(0,40)}</strong><br>
+          ${price} · ${l.beds||'?'}bd/${l.baths||'?'}ba<br>
+          ${l.nearest_metro ? '🚇 '+l.nearest_metro : ''}
+          <br><button class="popup-btn" onclick="closeAllPopups();openModal(${l.id})">View Details ›</button>
+        </div>`);
+    });
+
+    leafletMap.invalidateSize();
+  } catch(e) { showToast('Map data failed to load', 'error'); }
+}
+
+function closeAllPopups() { if (leafletMap) leafletMap.closePopup(); }
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+async function openModal(id) {
+  modalId = id;
+  const overlay = document.getElementById('modal-overlay');
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modal-body').innerHTML = '<div class="modal-loading"><div class="spinner"></div></div>';
+  document.getElementById('modal-photo-img').style.display = 'none';
+  document.getElementById('modal-photo-placeholder').style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/listings/${id}`);
+    const l   = await res.json();
+    _renderModal(l);
+  } catch(e) {
+    showToast('Could not load listing details', 'error');
+    closeModal();
+  }
+}
+
+function _renderModal(l) {
+  // ── Photos ──────────────────────────────────────────────────────────────────
+  photos = l.photos || [];
+  photoIndex = 0;
+  _updateCarousel();
+
+  // ── Toolbar ─────────────────────────────────────────────────────────────────
+  const favBtn = document.getElementById('modal-fav-btn');
+  favBtn.innerHTML = l.is_favorited ? '♥ Saved' : '♡ Save';
+  favBtn.classList.toggle('on', l.is_favorited);
+  favBtn.onclick = () => _toggleFavModal(l.id, l, favBtn);
+  document.getElementById('modal-ext-link').href = l.url;
+
+  // ── Stats row ────────────────────────────────────────────────────────────────
+  const price = l.price_min
+    ? `$${l.price_min.toLocaleString()}${l.price_max&&l.price_max!==l.price_min?' – $'+l.price_max.toLocaleString():''}`
+    : 'N/A';
+  const walkBadge = l.is_walkable
+    ? `<span class="badge badge-metro">🚇 ${l.nearest_metro} · ${(l.metro_distance_miles||0).toFixed(2)} mi — Walkable</span>`
+    : (l.nearest_metro ? `<span class="badge badge-no-metro">🚇 ${l.nearest_metro} · ${l.metro_distance_miles?l.metro_distance_miles.toFixed(2):'?'} mi</span>` : '');
+  const lightStars = '★'.repeat(l.natural_light_score)+'☆'.repeat(5-l.natural_light_score);
+  const hist = l.price_history || [];
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="mb-meta">
+      <span class="source-tag source-${l.source}">${SOURCE_LABELS[l.source]||l.source}</span>
+      ${l.is_new ? '<span class="new-tag">NEW</span>' : ''}
+    </div>
+    <h2 class="mb-title">${l.title||l.address||'Listing'}</h2>
+    <p class="mb-addr">📍 ${l.address||''}</p>
+
+    <div class="mb-stats">
+      <div class="mb-stat"><div class="mb-val">${price}</div><div class="mb-lbl">per month</div></div>
+      <div class="mb-stat"><div class="mb-val">${l.bedrooms?Math.floor(l.bedrooms):'?'}</div><div class="mb-lbl">bedrooms</div></div>
+      <div class="mb-stat"><div class="mb-val">${l.bathrooms||'?'}</div><div class="mb-lbl">bathrooms</div></div>
+      <div class="mb-stat"><div class="mb-val">${l.sqft_min?l.sqft_min.toLocaleString():'?'}</div><div class="mb-lbl">sq ft</div></div>
+    </div>
+
+    <div class="mb-badges">
+      ${walkBadge}
+      ${l.has_gym ? '<span class="badge badge-gym">🏋 Fitness Center / Gym</span>' : '<span class="badge badge-neutral">🏋 Gym not listed</span>'}
+      <span class="badge ${l.natural_light_score>=2?'badge-light':'badge-neutral'}">☀️ Natural light: ${lightStars} (${l.natural_light_score}/5)</span>
+    </div>
+
+    <div class="mb-score-row">
+      <div class="score-bar wide"><div class="score-fill" style="width:${l.score||0}%"></div></div>
+      <span class="score-val">${l.score||0}% match</span>
+    </div>
+
+    ${(l.amenities||[]).length ? `
+    <div class="mb-section">
+      <h4>Amenities</h4>
+      <div class="amenity-cloud">
+        ${l.amenities.map(a=>`<span class="a-chip">${a}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${l.description ? `
+    <div class="mb-section">
+      <h4>Description</h4>
+      <p class="mb-desc">${l.description.replace(/\n/g,'<br>')}</p>
+    </div>` : ''}
+
+    ${hist.length >= 2 ? `
+    <div class="mb-section">
+      <h4>Price History</h4>
+      <canvas id="price-chart" height="90"></canvas>
+    </div>` : ''}
+
+    <div class="mb-section">
+      <h4>My Notes</h4>
+      <textarea id="modal-notes" rows="3" placeholder="Add your thoughts about this listing…">${l.notes||''}</textarea>
+      <button class="btn btn-sm btn-save-notes" onclick="saveNotes(${l.id})">Save Notes</button>
+    </div>
+
+    <div class="mb-footer">
+      <button class="btn btn-dismiss-sm" onclick="dismissFromModal(${l.id})">Dismiss listing</button>
+      <small>First seen: ${l.first_seen_at ? new Date(l.first_seen_at).toLocaleDateString() : 'unknown'}</small>
+    </div>`;
+
+  if (hist.length >= 2) _renderPriceChart(hist);
+}
+
+function _updateCarousel() {
+  const img  = document.getElementById('modal-photo-img');
+  const ph   = document.getElementById('modal-photo-placeholder');
+  const prev = document.getElementById('photo-prev');
+  const next = document.getElementById('photo-next');
+  const ctr  = document.getElementById('photo-counter');
+  if (!photos.length) {
+    img.style.display = 'none'; ph.style.display = 'flex';
+    prev.style.display = next.style.display = 'none';
+    ctr.textContent = '';
+  } else {
+    img.src = photos[photoIndex]; img.style.display = 'block'; ph.style.display = 'none';
+    prev.style.display = next.style.display = photos.length > 1 ? 'flex' : 'none';
+    ctr.textContent = `${photoIndex+1} / ${photos.length}`;
+  }
+}
+
+function prevPhoto() { photoIndex = (photoIndex-1+photos.length)%photos.length; _updateCarousel(); }
+function nextPhoto() { photoIndex = (photoIndex+1)%photos.length; _updateCarousel(); }
+
+// Keyboard nav inside modal
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('modal-overlay').classList.contains('active')) return;
+  if (e.key === 'Escape')       closeModal();
+  if (e.key === 'ArrowLeft')    prevPhoto();
+  if (e.key === 'ArrowRight')   nextPhoto();
+});
+
+function _renderPriceChart(hist) {
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+  const ctx = document.getElementById('price-chart');
+  if (!ctx) return;
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: hist.map(h => new Date(h.recorded_at).toLocaleDateString('en-US', {month:'short', day:'numeric'})),
+      datasets: [{
+        label: 'Rent',
+        data: hist.map(h => h.price_min),
+        borderColor: '#2b6cb0',
+        backgroundColor: 'rgba(43,108,176,0.08)',
+        tension: 0.35, fill: true, pointRadius: 5, pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => '$'+c.raw.toLocaleString()+'/mo' } } },
+      scales: { y: { ticks: { callback: v => '$'+v.toLocaleString() } } }
+    }
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+  modalId = null; photos = [];
+}
+function handleOverlayClick(e) { if (e.target.id === 'modal-overlay') closeModal(); }
+
+// ── Favorites ─────────────────────────────────────────────────────────────────
+async function toggleFav(id, btn) {
+  event.stopPropagation();
+  try {
+    const res  = await fetch(`/api/listings/${id}/favorite`, { method:'POST' });
+    const data = await res.json();
+    btn.innerHTML = data.is_favorited ? '♥' : '♡';
+    btn.classList.toggle('on', data.is_favorited);
+    btn.closest('.listing-card').classList.toggle('is-faved', data.is_favorited);
+    const l = allListings.find(x => x.id === id);
+    if (l) l.is_favorited = data.is_favorited;
+    updateStatBadges();
+  } catch(e) { showToast('Could not save', 'error'); }
+}
+
+async function _toggleFavModal(id, l, btn) {
+  try {
+    const res  = await fetch(`/api/listings/${id}/favorite`, { method:'POST' });
+    const data = await res.json();
+    btn.innerHTML = data.is_favorited ? '♥ Saved' : '♡ Save';
+    btn.classList.toggle('on', data.is_favorited);
+    l.is_favorited = data.is_favorited;
+    // sync card
+    const cardBtn = document.querySelector(`.listing-card[data-id="${id}"] .fav-btn`);
+    if (cardBtn) { cardBtn.innerHTML = data.is_favorited ? '♥' : '♡'; cardBtn.classList.toggle('on', data.is_favorited); }
+    updateStatBadges();
+  } catch(e) { showToast('Could not save', 'error'); }
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+async function saveNotes(id) {
+  const notes = document.getElementById('modal-notes').value;
+  try {
+    await fetch(`/api/listings/${id}/notes`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ notes }),
+    });
+    showToast('Notes saved', 'success');
+  } catch(e) { showToast('Could not save notes', 'error'); }
+}
+
+// ── Dismiss ───────────────────────────────────────────────────────────────────
+async function dismissFromModal(id) {
+  try {
+    await fetch(`/api/listings/${id}/dismiss`, { method:'POST' });
+    closeModal();
+    const card = document.querySelector(`.listing-card[data-id="${id}"]`);
+    if (card) { card.style.opacity='0'; card.style.transform='scale(0.95)'; setTimeout(()=>card.remove(), 300); }
+    allListings = allListings.filter(l => l.id !== id);
+    showToast('Listing dismissed', 'info');
+  } catch(e) { showToast('Error dismissing listing', 'error'); }
+}
+
+// ── Scrape ────────────────────────────────────────────────────────────────────
 async function triggerScrape() {
   const btn = document.getElementById('btn-scrape');
-  btn.disabled = true;
-  btn.textContent = '↻ Scraping…';
+  btn.disabled = true; btn.textContent = '↻ Running…';
   try {
-    const res = await fetch('/api/scrape', { method: 'POST' });
+    const res  = await fetch('/api/scrape', { method:'POST' });
     const data = await res.json();
     if (data.status === 'started') {
-      showToast('Scrape started! Results will appear in a few minutes.', 'success');
-      setTimeout(() => location.reload(), 120_000); // auto-reload after 2 min
-    } else if (data.status === 'already_running') {
-      showToast('A scrape is already running. Please wait.', 'info');
+      showToast('Scrape started! New listings appear in ~2 min.', 'success');
+      setTimeout(() => { pageOffset=0; fetchListings(false); }, 120_000);
+    } else {
+      showToast('A scrape is already running…', 'info');
     }
-  } catch (e) {
-    showToast('Failed to trigger scrape.', 'error');
-  } finally {
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.textContent = '↻ Scrape Now';
-    }, 5000);
+  } catch(e) { showToast('Scrape trigger failed', 'error'); }
+  finally {
+    setTimeout(() => { btn.disabled=false; btn.textContent='↻ Scrape'; }, 6000);
   }
 }
 
-// ── Dismiss listing ───────────────────────────────────────────────────────────
-async function dismissListing(id, btn) {
-  try {
-    await fetch(`/api/listings/${id}/dismiss`, { method: 'POST' });
-    const card = btn.closest('.listing-card');
-    card.style.opacity = '0';
-    card.style.transform = 'scale(0.95)';
-    setTimeout(() => card.remove(), 300);
-  } catch (e) {
-    showToast('Could not dismiss listing.', 'error');
-  }
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportCSV() { window.open('/api/export.csv', '_blank'); }
+
+// ── Loading ───────────────────────────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loading-state').style.display = show ? 'grid' : 'none';
+  document.getElementById('listing-grid').style.display  = show ? 'none' : 'grid';
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
-function showToast(msg, type = 'info') {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = `toast toast-${type} show`;
-  setTimeout(() => toast.className = 'toast', 4000);
-}
-
-// ── Auto-refresh stats every 60s ──────────────────────────────────────────────
-setInterval(async () => {
+// ── Stats badges ──────────────────────────────────────────────────────────────
+async function updateStatBadges() {
   try {
     const r = await fetch('/api/stats');
     const d = await r.json();
-    // Subtle stats update without full reload
-    document.title = `Arlington Apt Finder (${d.total} listings)`;
-  } catch (_) {}
-}, 60_000);
-</script>
+    document.getElementById('stat-total').textContent = d.total;
+    document.getElementById('stat-new').textContent   = d.new_today;
+    document.getElementById('stat-favs').textContent  = d.favorites;
+    document.getElementById('tab-fav-count').textContent = d.favorites;
+  } catch(_) {}
+}
 
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast toast-${type} show`;
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.className='toast', 4000);
+}
+
+// Auto-refresh stats every 60 s
+setInterval(updateStatBadges, 60_000);
+</script>
 </body>
 </html>

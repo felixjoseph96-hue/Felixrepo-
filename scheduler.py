@@ -10,13 +10,13 @@ import logging
 from datetime import datetime
 from typing import List
 
-from sqlalchemy.exc import IntegrityError
-
 from config import Config
 from filters import enrich_listing, passes_hard_filters, compute_score
-from models import Listing, get_session, init_db
+from models import Listing, PriceHistory, get_session, init_db
 from notifier import send_notification
 from scraper.apartments_com import ApartmentsComScraper
+from scraper.craigslist import CraigslistScraper
+from scraper.rentcast import RentCastScraper
 from scraper.zillow import ZillowScraper
 
 logger = logging.getLogger(__name__)
@@ -42,24 +42,32 @@ async def run_scraper_job() -> None:
         }
         known_ids_apts = {eid for (src, eid) in known if src == "apartments_com"}
         known_ids_zillow = {eid for (src, eid) in known if src == "zillow"}
+        known_ids_cl = {eid for (src, eid) in known if src == "craigslist"}
+        known_ids_rc = {eid for (src, eid) in known if src == "rentcast"}
 
-    # ── Scrape both sources concurrently ──────────────────────────────────────
-    async def _run(scraper_cls, known_ids):
+    # ── Scrape all sources concurrently ───────────────────────────────────────
+    async def _run_playwright(scraper_cls, known_ids):
         async with scraper_cls(
             headless=Config.HEADLESS,
             max_detail_pages=Config.MAX_DETAIL_PAGES,
         ) as scraper:
             return await scraper.scrape(known_ids)
 
+    async def _run_api(scraper_cls, known_ids):
+        async with scraper_cls() as scraper:
+            return await scraper.scrape(known_ids)
+
     results = await asyncio.gather(
-        _run(ApartmentsComScraper, known_ids_apts),
-        _run(ZillowScraper, known_ids_zillow),
+        _run_api(RentCastScraper, known_ids_rc),
+        _run_playwright(ApartmentsComScraper, known_ids_apts),
+        _run_playwright(ZillowScraper, known_ids_zillow),
+        _run_api(CraigslistScraper, known_ids_cl),
         return_exceptions=True,
     )
 
     all_listings: List[Listing] = []
     for i, result in enumerate(results):
-        source = ["apartments_com", "zillow"][i]
+        source = ["rentcast", "apartments_com", "zillow", "craigslist"][i]
         if isinstance(result, Exception):
             logger.error("Scraper %s failed: %s", source, result)
         else:
@@ -83,13 +91,19 @@ async def run_scraper_job() -> None:
             )
 
             if existing:
-                # Update mutable fields (price may change, detail may be richer)
-                _update_existing(existing, listing)
+                _update_existing(existing, listing, session)
                 existing.is_new = False
             else:
                 listing.is_new = True
                 listing.first_seen_at = datetime.utcnow()
                 session.add(listing)
+                session.flush()  # get listing.id
+                if listing.price_min:
+                    session.add(PriceHistory(
+                        listing_id=listing.id,
+                        price_min=listing.price_min,
+                        price_max=listing.price_max,
+                    ))
                 if passes_hard_filters(listing):
                     newly_added.append(listing)
 
@@ -119,9 +133,14 @@ async def run_scraper_job() -> None:
     logger.info("=== Scrape job finished ===")
 
 
-def _update_existing(existing: Listing, fresh: Listing) -> None:
+def _update_existing(existing: Listing, fresh: Listing, session) -> None:
     """Update only fields that may have changed or are now more complete."""
-    if fresh.price_min is not None:
+    if fresh.price_min is not None and fresh.price_min != existing.price_min:
+        session.add(PriceHistory(
+            listing_id=existing.id,
+            price_min=fresh.price_min,
+            price_max=fresh.price_max,
+        ))
         existing.price_min = fresh.price_min
     if fresh.price_max is not None:
         existing.price_max = fresh.price_max

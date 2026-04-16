@@ -9,6 +9,9 @@ class Config:
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///apartments.db")
 
+    # RentCast API
+    RENTCAST_API_KEY: str = os.getenv("RENTCAST_API_KEY", "")
+
     # Email
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))

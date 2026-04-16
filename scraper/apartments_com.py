@@ -139,13 +139,13 @@ class ApartmentsComScraper(BaseScraper):
         # Beds / baths
         beds = item.get("Beds") or item.get("beds") or {}
         if isinstance(beds, dict):
-            listing.bedrooms = beds.get("Min") or beds.get("max")
+            listing.bedrooms = beds.get("Min") or beds.get("Max") or beds.get("max")
         else:
             listing.bedrooms = parse_beds(str(beds))
 
         baths = item.get("Baths") or item.get("baths") or {}
         if isinstance(baths, dict):
-            listing.bathrooms = baths.get("Min") or baths.get("max")
+            listing.bathrooms = baths.get("Min") or baths.get("Max") or baths.get("max")
         else:
             listing.bathrooms = parse_baths(str(baths))
 
