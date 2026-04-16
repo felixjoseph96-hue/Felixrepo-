@@ -1,6 +1,8 @@
 """Abstract base class shared by all site scrapers."""
 import asyncio
+import glob as _glob
 import logging
+import os
 import random
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -8,6 +10,33 @@ from typing import List, Optional
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from models import Listing
+
+
+def _find_chromium_executable() -> Optional[str]:
+    """
+    Locate a usable Chromium binary.
+    Checks PLAYWRIGHT_BROWSERS_PATH directories first, then falls back
+    to system-installed Chromium.
+    """
+    # Playwright browser search paths
+    search_roots = [
+        os.environ.get("PLAYWRIGHT_BROWSERS_PATH", ""),
+        os.path.expanduser("~/.cache/ms-playwright"),
+        "/opt/pw-browsers",
+        "/ms-playwright",
+    ]
+    for root in filter(None, search_roots):
+        for exe in _glob.glob(os.path.join(root, "chromium-*/chrome-linux/chrome")):
+            if os.access(exe, os.X_OK):
+                return exe
+
+    # System Chromium fallbacks
+    for candidate in ["/usr/bin/chromium-browser", "/usr/bin/chromium",
+                      "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"]:
+        if os.access(candidate, os.X_OK):
+            return candidate
+
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +78,21 @@ class BaseScraper(ABC):
 
     async def __aenter__(self):
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(
+        launch_kwargs: dict = dict(
             headless=self.headless,
             args=[
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
+                "--ignore-certificate-errors",
+                "--ignore-ssl-errors",
             ],
         )
+        exe = _find_chromium_executable()
+        if exe:
+            logger.info("Using Chromium: %s", exe)
+            launch_kwargs["executable_path"] = exe
+        self._browser = await self._playwright.chromium.launch(**launch_kwargs)
         ua = random.choice(_USER_AGENTS)
         vp = random.choice(_VIEWPORTS)
         self._context = await self._browser.new_context(
