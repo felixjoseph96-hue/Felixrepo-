@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arlington Apartment Finder</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-inner">
+    <div class="header-title">
+      <span class="logo">🏢</span>
+      <div>
+        <h1>Arlington Apartment Finder</h1>
+        <p class="subtitle">Rosslyn · Clarendon · Ballston &nbsp;|&nbsp; 2bd/2ba · ≤${{ config.max_price|int|format_num }} · {{ config.min_sqft|format_num }}+ sqft</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btn-scrape" class="btn btn-primary" onclick="triggerScrape()">
+        ↻ Scrape Now
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── Stats bar ───────────────────────────────────────────────────────────── -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-num">{{ stats.qualifying }}</div>
+    <div class="stat-label">Qualifying Listings</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num new-badge">{{ stats.new_today }}</div>
+    <div class="stat-label">New Today</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ stats.walkable }}</div>
+    <div class="stat-label">Metro Walkable</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ stats.has_gym }}</div>
+    <div class="stat-label">Has Gym</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num small">
+      {% if stats.last_scrape %}
+        {{ stats.last_scrape.strftime('%I:%M %p') }}
+      {% else %}
+        Never
+      {% endif %}
+    </div>
+    <div class="stat-label">Last Scraped</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num small">{{ stats.next_scrape_minutes }}m</div>
+    <div class="stat-label">Scrape Interval</div>
+  </div>
+</div>
+
+<!-- ── Filter bar ──────────────────────────────────────────────────────────── -->
+<div class="filter-bar">
+  <label class="filter-group">
+    <span>Source</span>
+    <select id="f-source" onchange="applyFilters()">
+      <option value="">All</option>
+      <option value="apartments_com">Apartments.com</option>
+      <option value="zillow">Zillow</option>
+    </select>
+  </label>
+
+  <label class="filter-group">
+    <span>Max Rent</span>
+    <select id="f-price" onchange="applyFilters()">
+      <option value="">Any (≤$3,500)</option>
+      <option value="2500">≤ $2,500</option>
+      <option value="3000">≤ $3,000</option>
+      <option value="3250">≤ $3,250</option>
+      <option value="3500">≤ $3,500</option>
+    </select>
+  </label>
+
+  <label class="filter-group">
+    <span>Sort</span>
+    <select id="f-sort" onchange="applyFilters()">
+      <option value="score">Best Match</option>
+      <option value="price">Lowest Price</option>
+      <option value="sqft">Largest</option>
+      <option value="newest">Newest</option>
+    </select>
+  </label>
+
+  <label class="filter-toggle">
+    <input type="checkbox" id="f-walkable" onchange="applyFilters()" />
+    <span>Metro walkable only</span>
+  </label>
+
+  <label class="filter-toggle">
+    <input type="checkbox" id="f-gym" onchange="applyFilters()" />
+    <span>Has gym</span>
+  </label>
+
+  <label class="filter-toggle">
+    <input type="checkbox" id="f-new" onchange="applyFilters()" />
+    <span>New only</span>
+  </label>
+
+  <label class="filter-group">
+    <span>Min Light Score</span>
+    <select id="f-light" onchange="applyFilters()">
+      <option value="0">Any</option>
+      <option value="1">1+</option>
+      <option value="2">2+</option>
+      <option value="3">3+</option>
+    </select>
+  </label>
+</div>
+
+<!-- ── Loading / empty states ─────────────────────────────────────────────── -->
+<div id="loading" class="loading" style="display:none;">Loading listings…</div>
+<div id="empty" class="empty-state" style="display:none;">
+  <div class="empty-icon">🔍</div>
+  <h3>No listings match your filters</h3>
+  <p>Try relaxing some filters, or click <strong>↻ Scrape Now</strong> to check for new listings.</p>
+</div>
+
+<!-- ── Listing grid ────────────────────────────────────────────────────────── -->
+<main id="listing-grid" class="listing-grid">
+  {% for listing in listings %}
+  <article class="listing-card {% if listing.is_new %}is-new{% endif %}"
+           data-id="{{ listing.id }}"
+           data-score="{{ listing|compute_score }}">
+
+    {% if listing.is_new %}
+      <div class="new-ribbon">NEW</div>
+    {% endif %}
+
+    <!-- Photo -->
+    <div class="card-photo">
+      {% if listing.photos %}
+        <img src="{{ listing.photos[0] }}" alt="{{ listing.title }}"
+             onerror="this.parentElement.classList.add('no-photo')" />
+      {% else %}
+        <div class="photo-placeholder">🏢</div>
+      {% endif %}
+      <div class="source-badge source-{{ listing.source }}">
+        {{ 'Apts.com' if listing.source == 'apartments_com' else 'Zillow' }}
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="card-body">
+      <h2 class="card-title">
+        <a href="{{ listing.url }}" target="_blank" rel="noopener">
+          {{ listing.title or listing.address or 'View Listing' }}
+        </a>
+      </h2>
+      <p class="card-address">{{ listing.address or '' }}</p>
+
+      <!-- Key numbers -->
+      <div class="card-numbers">
+        <div class="number-item price">
+          {% if listing.price_min %}
+            ${{ '{:,}'.format(listing.price_min) }}
+            {% if listing.price_max and listing.price_max != listing.price_min %}
+              – ${{ '{:,}'.format(listing.price_max) }}
+            {% endif %}
+            <small>/mo</small>
+          {% else %}
+            <span class="unknown">Price N/A</span>
+          {% endif %}
+        </div>
+        <div class="number-item">
+          {{ listing.bedrooms|int if listing.bedrooms else '?' }} bd
+          / {{ listing.bathrooms if listing.bathrooms else '?' }} ba
+        </div>
+        <div class="number-item">
+          {% if listing.sqft_min %}
+            {{ '{:,}'.format(listing.sqft_min) }}
+            {% if listing.sqft_max and listing.sqft_max != listing.sqft_min %}
+              – {{ '{:,}'.format(listing.sqft_max) }}
+            {% endif %}
+            sqft
+          {% else %}
+            <span class="unknown">Sqft TBD</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Badges -->
+      <div class="card-badges">
+        {% if listing.is_walkable %}
+          <span class="badge badge-metro">
+            🚇 {{ listing.nearest_metro }}
+            ({{ '%.2f'|format(listing.metro_distance_miles) }} mi)
+          </span>
+        {% else %}
+          <span class="badge badge-no-metro">
+            🚇 {{ listing.nearest_metro or 'Metro' }}
+            ({{ ('%.2f'|format(listing.metro_distance_miles)) if listing.metro_distance_miles else '?' }} mi)
+          </span>
+        {% endif %}
+
+        {% if listing.has_gym %}
+          <span class="badge badge-gym">🏋 Gym</span>
+        {% endif %}
+
+        {% if listing.natural_light_score >= 2 %}
+          <span class="badge badge-light">
+            ☀️ Light {{ listing.natural_light_score }}/5
+          </span>
+        {% elif listing.natural_light_score == 1 %}
+          <span class="badge badge-light-dim">
+            🌤 Light {{ listing.natural_light_score }}/5
+          </span>
+        {% endif %}
+      </div>
+
+      <!-- Amenities preview -->
+      {% if listing.amenities %}
+        <div class="card-amenities">
+          {% for a in listing.amenities[:6] %}
+            <span class="amenity-tag">{{ a }}</span>
+          {% endfor %}
+          {% if listing.amenities|length > 6 %}
+            <span class="amenity-more">+{{ listing.amenities|length - 6 }} more</span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Score + Actions -->
+      <div class="card-footer">
+        <div class="match-score" title="Match score based on metro, gym, light, price, sqft">
+          <div class="score-bar">
+            <div class="score-fill" style="width:{{ listing|compute_score }}%"></div>
+          </div>
+          <span>{{ listing|compute_score }}% match</span>
+        </div>
+        <div class="card-actions">
+          <a href="{{ listing.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-view">
+            View →
+          </a>
+          {% if listing.is_new %}
+            <button class="btn btn-sm btn-dismiss"
+                    onclick="dismissListing({{ listing.id }}, this)">
+              Dismiss
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </article>
+  {% endfor %}
+</main>
+
+<!-- ── Scrape status toast ─────────────────────────────────────────────────── -->
+<div id="toast" class="toast" aria-live="polite"></div>
+
+<script>
+// ── Filter / Sort ─────────────────────────────────────────────────────────────
+async function applyFilters() {
+  const source   = document.getElementById('f-source').value;
+  const maxPrice = document.getElementById('f-price').value;
+  const walkable = document.getElementById('f-walkable').checked;
+  const gym      = document.getElementById('f-gym').checked;
+  const newOnly  = document.getElementById('f-new').checked;
+  const minLight = document.getElementById('f-light').value;
+  const sort     = document.getElementById('f-sort').value;
+
+  const params = new URLSearchParams();
+  if (source)   params.set('source', source);
+  if (maxPrice) params.set('max_price', maxPrice);
+  if (walkable) params.set('walkable', 'true');
+  if (gym)      params.set('gym', 'true');
+  if (newOnly)  params.set('new_only', 'true');
+  if (minLight > 0) params.set('min_light', minLight);
+  params.set('sort', sort);
+  params.set('limit', '200');
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('listing-grid').style.display = 'none';
+  document.getElementById('empty').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/listings?' + params.toString());
+    const data = await res.json();
+    renderListings(data.listings);
+  } catch (e) {
+    showToast('Failed to load listings: ' + e.message, 'error');
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+function renderListings(listings) {
+  const grid = document.getElementById('listing-grid');
+  const empty = document.getElementById('empty');
+
+  if (!listings.length) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+
+  grid.innerHTML = listings.map(l => buildCard(l)).join('');
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+}
+
+function buildCard(l) {
+  const price = l.price_min
+    ? `$${l.price_min.toLocaleString()}${l.price_max && l.price_max !== l.price_min ? ' – $' + l.price_max.toLocaleString() : ''}<small>/mo</small>`
+    : '<span class="unknown">Price N/A</span>';
+
+  const sqft = l.sqft_min
+    ? `${l.sqft_min.toLocaleString()}${l.sqft_max && l.sqft_max !== l.sqft_min ? ' – ' + l.sqft_max.toLocaleString() : ''} sqft`
+    : '<span class="unknown">Sqft TBD</span>';
+
+  const metroBadge = l.is_walkable
+    ? `<span class="badge badge-metro">🚇 ${l.nearest_metro || 'Metro'} (${(l.metro_distance_miles||0).toFixed(2)} mi)</span>`
+    : `<span class="badge badge-no-metro">🚇 ${l.nearest_metro || 'Metro'} (${l.metro_distance_miles ? l.metro_distance_miles.toFixed(2) : '?'} mi)</span>`;
+
+  const gymBadge = l.has_gym ? `<span class="badge badge-gym">🏋 Gym</span>` : '';
+  const lightBadge = l.natural_light_score >= 2
+    ? `<span class="badge badge-light">☀️ Light ${l.natural_light_score}/5</span>`
+    : l.natural_light_score === 1
+      ? `<span class="badge badge-light-dim">🌤 Light ${l.natural_light_score}/5</span>`
+      : '';
+
+  const amenities = (l.amenities || []).slice(0, 6)
+    .map(a => `<span class="amenity-tag">${a}</span>`).join('');
+
+  const photoHtml = l.photos && l.photos.length
+    ? `<img src="${l.photos[0]}" alt="${l.title || ''}" onerror="this.parentElement.classList.add('no-photo')" />`
+    : `<div class="photo-placeholder">🏢</div>`;
+
+  const sourceLabel = l.source === 'apartments_com' ? 'Apts.com' : 'Zillow';
+  const newRibbon = l.is_new ? '<div class="new-ribbon">NEW</div>' : '';
+  const dismissBtn = l.is_new
+    ? `<button class="btn btn-sm btn-dismiss" onclick="dismissListing(${l.id}, this)">Dismiss</button>`
+    : '';
+
+  return `
+<article class="listing-card ${l.is_new ? 'is-new' : ''}" data-id="${l.id}" data-score="${l.score || 0}">
+  ${newRibbon}
+  <div class="card-photo">
+    ${photoHtml}
+    <div class="source-badge source-${l.source}">${sourceLabel}</div>
+  </div>
+  <div class="card-body">
+    <h2 class="card-title"><a href="${l.url}" target="_blank" rel="noopener">${l.title || l.address || 'View Listing'}</a></h2>
+    <p class="card-address">${l.address || ''}</p>
+    <div class="card-numbers">
+      <div class="number-item price">${price}</div>
+      <div class="number-item">${l.bedrooms ? Math.floor(l.bedrooms) : '?'} bd / ${l.bathrooms || '?'} ba</div>
+      <div class="number-item">${sqft}</div>
+    </div>
+    <div class="card-badges">${metroBadge}${gymBadge}${lightBadge}</div>
+    ${amenities ? `<div class="card-amenities">${amenities}</div>` : ''}
+    <div class="card-footer">
+      <div class="match-score">
+        <div class="score-bar"><div class="score-fill" style="width:${l.score || 0}%"></div></div>
+        <span>${l.score || 0}% match</span>
+      </div>
+      <div class="card-actions">
+        <a href="${l.url}" target="_blank" rel="noopener" class="btn btn-sm btn-view">View →</a>
+        ${dismissBtn}
+      </div>
+    </div>
+  </div>
+</article>`;
+}
+
+// ── Scrape trigger ────────────────────────────────────────────────────────────
+async function triggerScrape() {
+  const btn = document.getElementById('btn-scrape');
+  btn.disabled = true;
+  btn.textContent = '↻ Scraping…';
+  try {
+    const res = await fetch('/api/scrape', { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'started') {
+      showToast('Scrape started! Results will appear in a few minutes.', 'success');
+      setTimeout(() => location.reload(), 120_000); // auto-reload after 2 min
+    } else if (data.status === 'already_running') {
+      showToast('A scrape is already running. Please wait.', 'info');
+    }
+  } catch (e) {
+    showToast('Failed to trigger scrape.', 'error');
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = '↻ Scrape Now';
+    }, 5000);
+  }
+}
+
+// ── Dismiss listing ───────────────────────────────────────────────────────────
+async function dismissListing(id, btn) {
+  try {
+    await fetch(`/api/listings/${id}/dismiss`, { method: 'POST' });
+    const card = btn.closest('.listing-card');
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.95)';
+    setTimeout(() => card.remove(), 300);
+  } catch (e) {
+    showToast('Could not dismiss listing.', 'error');
+  }
+}
+
+// ── Toast notification ────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast toast-${type} show`;
+  setTimeout(() => toast.className = 'toast', 4000);
+}
+
+// ── Auto-refresh stats every 60s ──────────────────────────────────────────────
+setInterval(async () => {
+  try {
+    const r = await fetch('/api/stats');
+    const d = await r.json();
+    // Subtle stats update without full reload
+    document.title = `Arlington Apt Finder (${d.total} listings)`;
+  } catch (_) {}
+}, 60_000);
+</script>
+
+</body>
+</html>
