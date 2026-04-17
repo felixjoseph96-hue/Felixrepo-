@@ -160,9 +160,9 @@
     <!-- Modal toolbar -->
     <div class="modal-toolbar">
       <button id="modal-fav-btn" class="btn-fav-modal" onclick="">♡ Save</button>
-      <a id="modal-ext-link" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-view">
+      <button id="modal-ext-link" onclick="" class="btn btn-sm btn-view">
         View Original ↗
-      </a>
+      </button>
       <button class="modal-close-btn" onclick="closeModal()" aria-label="Close">✕</button>
     </div>
 
@@ -453,7 +453,7 @@ function _renderModal(l) {
   favBtn.onclick = () => _toggleFavModal(l.id, l, favBtn);
   const extLink = document.getElementById('modal-ext-link');
   if (l.url) {
-    extLink.href = l.url;
+    extLink.onclick = () => window.open(l.url, '_blank');
     extLink.style.display = '';
   } else {
     extLink.style.display = 'none';

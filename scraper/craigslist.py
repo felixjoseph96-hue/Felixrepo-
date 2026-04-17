@@ -219,8 +219,13 @@ class CraigslistScraper(BaseScraper):
                 except ValueError:
                     pass
 
-        # Photos
-        imgs = soup.select("img.slide[src]")
+        # Photos — try multiple selectors for different Craigslist layouts
+        imgs = (
+            soup.select("img.slide[src]") or
+            soup.select("img[src*='images.craigslist.org']") or
+            soup.select("figure.swipe-wrap img[src]") or
+            soup.select(".gallery img[src]")
+        )
         photos = [img["src"] for img in imgs if "https" in img.get("src", "")]
         if photos:
             listing.photos = photos[:10]
