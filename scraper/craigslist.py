@@ -202,10 +202,29 @@ class CraigslistScraper(BaseScraper):
         # Description
         body_el = soup.select_one("#postingbody, section.userbody")
         if body_el:
-            # Remove "QR Code Link to This Post" boilerplate
             for el in body_el.select(".print-qrcode-container"):
                 el.decompose()
             listing.description = body_el.get_text(separator=" ", strip=True)
+
+        # Available date — look for "available June 1", "avail 6/1", etc.
+        import re as _re
+        from datetime import datetime as _dt
+        desc_text = (listing.description or "") + " " + (listing.title or "")
+        m = _re.search(
+            r"avail(?:able)?\s+(?:on\s+|by\s+)?([A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)",
+            desc_text, _re.IGNORECASE
+        )
+        if m:
+            raw = m.group(1).strip().rstrip("stndrdth,").strip()
+            for fmt in ("%B %d %Y", "%B %d", "%b %d %Y", "%b %d", "%m/%d/%Y", "%m/%d/%y", "%m/%d", "%m-%d-%Y"):
+                try:
+                    d = _dt.strptime(raw, fmt)
+                    if d.year == 1900:
+                        d = d.replace(year=_dt.utcnow().year)
+                    listing.date_available = d
+                    break
+                except ValueError:
+                    pass
 
         # Lat / lon from map data attribute
         map_el = soup.select_one("#map")

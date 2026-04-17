@@ -91,6 +91,13 @@
       <option value="2">☀️ Light 2+</option>
       <option value="3">☀️☀️ Light 3+</option>
     </select>
+
+    <select id="f-avail" onchange="applyFilters()" title="Available by date">
+      <option value="">Any Move-in</option>
+      <option value="2026-06-01">By June 1</option>
+      <option value="2026-07-01">By July 1</option>
+      <option value="2026-08-01">By Aug 1</option>
+    </select>
   </div>
 </div>
 
@@ -228,6 +235,7 @@ function getFilters() {
     gym:           document.getElementById('f-gym').checked,
     new_only:      document.getElementById('f-new').checked,
     min_light:     document.getElementById('f-light').value,
+    available_by:  document.getElementById('f-avail').value,
     sort:          document.getElementById('f-sort').value,
     favorites_only: currentView === 'favorites',
   };
@@ -252,8 +260,9 @@ function loadFiltersFromStorage() {
     if (f.walkable)  document.getElementById('f-walkable').checked = f.walkable;
     if (f.gym)       document.getElementById('f-gym').checked      = f.gym;
     if (f.new_only)  document.getElementById('f-new').checked      = f.new_only;
-    if (f.min_light) document.getElementById('f-light').value      = f.min_light;
-    if (f.sort)      document.getElementById('f-sort').value       = f.sort;
+    if (f.min_light)    document.getElementById('f-light').value      = f.min_light;
+    if (f.available_by) document.getElementById('f-avail').value     = f.available_by;
+    if (f.sort)         document.getElementById('f-sort').value       = f.sort;
   } catch(_) {}
 }
 
@@ -272,6 +281,7 @@ async function fetchListings(append) {
   if (f.new_only)      p.set('new_only', 'true');
   if (f.favorites_only)p.set('favorites_only', 'true');
   if (+f.min_light > 0)p.set('min_light', f.min_light);
+  if (f.available_by)  p.set('available_by', f.available_by);
   p.set('sort', f.sort); p.set('limit', PAGE_SIZE); p.set('offset', pageOffset);
 
   try {
@@ -467,6 +477,9 @@ function _renderModal(l) {
     ? `<span class="badge badge-metro">🚇 ${l.nearest_metro} · ${(l.metro_distance_miles||0).toFixed(2)} mi — Walkable</span>`
     : (l.nearest_metro ? `<span class="badge badge-no-metro">🚇 ${l.nearest_metro} · ${l.metro_distance_miles?l.metro_distance_miles.toFixed(2):'?'} mi</span>` : '');
   const lightStars = '★'.repeat(l.natural_light_score)+'☆'.repeat(5-l.natural_light_score);
+  const availStr = l.date_available
+    ? '📅 Available ' + new Date(l.date_available).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+    : null;
   const hist = l.price_history || [];
 
   document.getElementById('modal-body').innerHTML = `
@@ -488,6 +501,7 @@ function _renderModal(l) {
       ${walkBadge}
       ${l.has_gym ? '<span class="badge badge-gym">🏋 Fitness Center / Gym</span>' : '<span class="badge badge-neutral">🏋 Gym not listed</span>'}
       <span class="badge ${l.natural_light_score>=2?'badge-light':'badge-neutral'}">☀️ Natural light: ${lightStars} (${l.natural_light_score}/5)</span>
+      ${availStr ? `<span class="badge badge-avail">${availStr}</span>` : ''}
     </div>
 
     <div class="mb-score-row">

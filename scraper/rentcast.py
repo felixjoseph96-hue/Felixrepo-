@@ -137,6 +137,16 @@ class RentCastScraper:
             or f"https://app.rentcast.io/app?address={address.replace(' ', '+')}"
         )
 
+        # Available date
+        avail_str = item.get("availableDate") or item.get("daysOnMarket") and None
+        date_available = None
+        if avail_str and isinstance(avail_str, str):
+            try:
+                from datetime import datetime as _dt
+                date_available = _dt.fromisoformat(avail_str.replace("Z", ""))
+            except Exception:
+                pass
+
         listing = Listing(
             source=self.SOURCE,
             external_id=ext_id,
@@ -154,6 +164,7 @@ class RentCastScraper:
             bathrooms=float(item.get("bathrooms", 2)),
             sqft_min=sqft_min,
             description=item.get("description") or item.get("remarks"),
+            date_available=date_available,
             detail_fetched=True,
             scraped_at=datetime.utcnow(),
         )

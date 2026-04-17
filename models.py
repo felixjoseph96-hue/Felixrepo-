@@ -65,6 +65,7 @@ class Listing(Base):
     listed_at = Column(DateTime)
     scraped_at = Column(DateTime, default=datetime.utcnow)
     first_seen_at = Column(DateTime, default=datetime.utcnow)
+    date_available = Column(DateTime)
     is_new = Column(Boolean, default=True)
     is_notified = Column(Boolean, default=False)
     detail_fetched = Column(Boolean, default=False)
@@ -127,6 +128,7 @@ class Listing(Base):
             "is_favorited": self.is_favorited,
             "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
             "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
+            "date_available": self.date_available.isoformat() if self.date_available else None,
             "score": None,  # injected by API layer
         }
         if include_detail:
@@ -176,8 +178,9 @@ def init_db() -> None:
 def _migrate() -> None:
     """Add columns introduced after the initial schema without dropping data."""
     new_columns = [
-        ("listings", "is_favorited", "BOOLEAN DEFAULT 0"),
-        ("listings", "notes",        "TEXT DEFAULT ''"),
+        ("listings", "is_favorited",   "BOOLEAN DEFAULT 0"),
+        ("listings", "notes",          "TEXT DEFAULT ''"),
+        ("listings", "date_available", "DATETIME"),
     ]
     with engine.connect() as conn:
         for table, col, col_def in new_columns:

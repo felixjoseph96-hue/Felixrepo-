@@ -77,6 +77,7 @@ def _query_listings(
     new_only: bool = False,
     favorites_only: bool = False,
     min_light: int = 0,
+    available_by: Optional[str] = None,
     sort: str = "score",
     limit: int = 50,
     offset: int = 0,
@@ -96,6 +97,15 @@ def _query_listings(
         q = q.filter(Listing.is_favorited == True)
     if min_light > 0:
         q = q.filter(Listing.natural_light_score >= min_light)
+    if available_by:
+        from datetime import datetime as _dt
+        try:
+            cutoff = _dt.fromisoformat(available_by)
+            q = q.filter(
+                (Listing.date_available <= cutoff) | (Listing.date_available.is_(None))
+            )
+        except ValueError:
+            pass
 
     if sort == "price":
         q = q.order_by(Listing.price_min.asc().nullslast())
@@ -167,6 +177,7 @@ async def api_listings(
     new_only: bool = Query(False),
     favorites_only: bool = Query(False),
     min_light: int = Query(0),
+    available_by: Optional[str] = Query(None),
     sort: str = Query("score", pattern="^(score|price|sqft|newest)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -180,6 +191,7 @@ async def api_listings(
         new_only=new_only,
         favorites_only=favorites_only,
         min_light=min_light,
+        available_by=available_by,
         sort=sort,
         limit=limit,
         offset=offset,
