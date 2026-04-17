@@ -107,8 +107,9 @@ async def run_scraper_job() -> None:
                 if passes_hard_filters(listing):
                     newly_added.append(listing)
 
-        # Sort and capture scores while still inside the session
+        # Sort and capture keys while still inside the session
         newly_added.sort(key=compute_score, reverse=True)
+        newly_added_keys = [(l.source, l.external_id) for l in newly_added]
         session.commit()
 
     logger.info(
@@ -120,11 +121,11 @@ async def run_scraper_job() -> None:
     if newly_added:
         await send_notification(newly_added)
 
-        # Mark as notified
+        # Mark as notified using pre-captured keys (listings are detached now)
         with get_session() as session:
-            for l in newly_added:
+            for source, ext_id in newly_added_keys:
                 obj = session.query(Listing).filter_by(
-                    source=l.source, external_id=l.external_id
+                    source=source, external_id=ext_id
                 ).first()
                 if obj:
                     obj.is_notified = True
