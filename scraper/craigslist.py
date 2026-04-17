@@ -219,14 +219,30 @@ class CraigslistScraper(BaseScraper):
                 except ValueError:
                     pass
 
-        # Photos — try multiple selectors for different Craigslist layouts
-        imgs = (
-            soup.select("img.slide[src]") or
-            soup.select("img[src*='images.craigslist.org']") or
-            soup.select("figure.swipe-wrap img[src]") or
-            soup.select(".gallery img[src]")
-        )
-        photos = [img["src"] for img in imgs if "https" in img.get("src", "")]
+        # Photos — Craigslist lazy-loads images via JS; extract URLs from script tag
+        import json as _json, re as _re
+        photos = []
+        for script in soup.find_all("script"):
+            text = script.string or ""
+            # Pattern: var imgList = [...] or window._init_data = {...}
+            m = _re.search(r'"imgList"\s*:\s*(\[[^\]]+\])', text)
+            if m:
+                try:
+                    urls = _json.loads(m.group(1))
+                    photos = [u for u in urls if isinstance(u, str) and u.startswith("http")]
+                    break
+                except Exception:
+                    pass
+            m = _re.search(r'https://images\.craigslist\.org/[^"\')\s]+', text)
+            if m:
+                photos = _re.findall(r'https://images\.craigslist\.org/[^"\')\s]+', text)
+                break
+        # Fallback: img tags with data-src or src
+        if not photos:
+            for img in soup.find_all("img"):
+                src = img.get("data-src") or img.get("src", "")
+                if "images.craigslist.org" in src:
+                    photos.append(src)
         if photos:
             listing.photos = photos[:10]
 
