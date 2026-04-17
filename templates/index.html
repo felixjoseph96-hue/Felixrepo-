@@ -451,7 +451,13 @@ function _renderModal(l) {
   favBtn.innerHTML = l.is_favorited ? '♥ Saved' : '♡ Save';
   favBtn.classList.toggle('on', l.is_favorited);
   favBtn.onclick = () => _toggleFavModal(l.id, l, favBtn);
-  document.getElementById('modal-ext-link').href = l.url;
+  const extLink = document.getElementById('modal-ext-link');
+  if (l.url) {
+    extLink.href = l.url;
+    extLink.style.display = '';
+  } else {
+    extLink.style.display = 'none';
+  }
 
   // ── Stats row ────────────────────────────────────────────────────────────────
   const price = l.price_min
