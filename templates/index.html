@@ -86,6 +86,11 @@
       <span>🆕 New</span>
     </label>
 
+    <label class="toggle-filter" title="Hide listings with bad management reports">
+      <input type="checkbox" id="f-hide-bad" onchange="applyFilters()" />
+      <span>✅ Hide Bad Mgmt</span>
+    </label>
+
     <select id="f-light" onchange="applyFilters()" title="Min natural light score">
       <option value="0">Any Light</option>
       <option value="2">☀️ Light 2+</option>
@@ -236,6 +241,7 @@ function getFilters() {
     new_only:      document.getElementById('f-new').checked,
     min_light:     document.getElementById('f-light').value,
     available_by:  document.getElementById('f-avail').value,
+    hide_bad_mgmt: document.getElementById('f-hide-bad').checked,
     sort:          document.getElementById('f-sort').value,
     favorites_only: currentView === 'favorites',
   };
@@ -281,7 +287,8 @@ async function fetchListings(append) {
   if (f.new_only)      p.set('new_only', 'true');
   if (f.favorites_only)p.set('favorites_only', 'true');
   if (+f.min_light > 0)p.set('min_light', f.min_light);
-  if (f.available_by)  p.set('available_by', f.available_by);
+  if (f.available_by)   p.set('available_by', f.available_by);
+  if (f.hide_bad_mgmt)  p.set('hide_bad_mgmt', 'true');
   p.set('sort', f.sort); p.set('limit', PAGE_SIZE); p.set('offset', pageOffset);
 
   try {
@@ -502,6 +509,8 @@ function _renderModal(l) {
       ${l.has_gym ? '<span class="badge badge-gym">🏋 Fitness Center / Gym</span>' : '<span class="badge badge-neutral">🏋 Gym not listed</span>'}
       <span class="badge ${l.natural_light_score>=2?'badge-light':'badge-neutral'}">☀️ Natural light: ${lightStars} (${l.natural_light_score}/5)</span>
       ${availStr ? `<span class="badge badge-avail">${availStr}</span>` : ''}
+      ${l.review_rating ? `<span class="badge ${l.bad_management?'badge-bad-mgmt':'badge-review'}">⭐ ${l.review_rating.toFixed(1)} (${l.review_count||0} reviews)${l.bad_management?' ⚠️ Bad mgmt reports':''}</span>` : ''}
+      ${l.bad_management && !l.review_rating ? '<span class="badge badge-bad-mgmt">⚠️ Bad management reported</span>' : ''}
     </div>
 
     <div class="mb-score-row">

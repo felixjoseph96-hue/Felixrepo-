@@ -131,6 +131,17 @@ async def run_scraper_job() -> None:
                     obj.is_notified = True
             session.commit()
 
+    # ── Fetch reviews for new listings ───────────────────────────────────────
+    if newly_added_keys:
+        from reviews import enrich_reviews
+        with get_session() as session:
+            new_ids = [
+                obj.id for src, eid in newly_added_keys
+                for obj in [session.query(Listing).filter_by(source=src, external_id=eid).first()]
+                if obj
+            ]
+        await enrich_reviews(new_ids)
+
     logger.info("=== Scrape job finished ===")
 
 

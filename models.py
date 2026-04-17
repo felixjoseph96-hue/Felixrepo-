@@ -56,6 +56,9 @@ class Listing(Base):
     # ── Scored attributes ─────────────────────────────────────────────────────
     has_gym = Column(Boolean, default=False)
     natural_light_score = Column(Integer, default=0)  # 0–5
+    review_rating = Column(Float)       # Google/Yelp avg rating
+    review_count = Column(Integer)      # total reviews
+    bad_management = Column(Boolean, default=False)  # flagged by 1-star review keywords
 
     # ── User interaction ──────────────────────────────────────────────────────
     is_favorited = Column(Boolean, default=False)
@@ -126,6 +129,9 @@ class Listing(Base):
             "amenities": self.amenities[:6],
             "is_new": self.is_new,
             "is_favorited": self.is_favorited,
+            "review_rating": self.review_rating,
+            "review_count": self.review_count,
+            "bad_management": self.bad_management,
             "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
             "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
             "date_available": self.date_available.isoformat() if self.date_available else None,
@@ -181,6 +187,9 @@ def _migrate() -> None:
         ("listings", "is_favorited",   "BOOLEAN DEFAULT 0"),
         ("listings", "notes",          "TEXT DEFAULT ''"),
         ("listings", "date_available", "DATETIME"),
+        ("listings", "review_rating",  "FLOAT"),
+        ("listings", "review_count",   "INTEGER"),
+        ("listings", "bad_management", "BOOLEAN DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for table, col, col_def in new_columns:

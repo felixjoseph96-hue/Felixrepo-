@@ -78,6 +78,7 @@ def _query_listings(
     favorites_only: bool = False,
     min_light: int = 0,
     available_by: Optional[str] = None,
+    hide_bad_mgmt: bool = False,
     sort: str = "score",
     limit: int = 50,
     offset: int = 0,
@@ -106,6 +107,8 @@ def _query_listings(
             )
         except ValueError:
             pass
+    if hide_bad_mgmt:
+        q = q.filter((Listing.bad_management == False) | (Listing.bad_management.is_(None)))
 
     if sort == "price":
         q = q.order_by(Listing.price_min.asc().nullslast())
