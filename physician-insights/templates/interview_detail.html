@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ interview.filename }}{% endblock %}
+{% block content %}
+<a class="back" href="/interviews">&larr; All interviews</a>
+<h1>{{ interview.filename }}</h1>
+<p class="meta">
+    <span class="status status-{{ interview.status }}">{{ interview.status }}</span>
+    {% if interview.specialty %}&middot; {{ interview.specialty }}{% endif %}
+    {% if interview.physician_name %}&middot; {{ interview.physician_name }}{% endif %}
+    &middot; uploaded {{ interview.created_at.strftime("%Y-%m-%d %H:%M") }}
+</p>
+
+{% if interview.status == "error" %}
+<div class="alert alert-error">
+    <strong>Processing failed:</strong> {{ interview.error_message }}
+</div>
+<form action="/interviews/{{ interview.id }}/reprocess" method="post" style="display:inline">
+    <button type="submit">Retry analysis</button>
+</form>
+{% endif %}
+
+{% if interview.summary %}
+<section class="card">
+    <h2>Summary</h2>
+    <p>{{ interview.summary }}</p>
+</section>
+{% endif %}
+
+{% if interview.top_insight %}
+<section class="card highlight">
+    <h2>Top insight</h2>
+    <p>{{ interview.top_insight }}</p>
+</section>
+{% endif %}
+
+{% if pain_points %}
+<section>
+    <h2>Pain points ({{ pain_points|length }})</h2>
+    {% for p in pain_points %}
+    <div class="pain-point severity-{{ p.severity }}">
+        <div class="pp-header">
+            <span class="theme-badge">{{ p.display_theme() }}</span>
+            <span class="severity-badge">severity {{ p.severity }}/5</span>
+            <span class="freq-badge">{{ p.frequency_signal }} frequency</span>
+        </div>
+        <p class="pp-description">{{ p.description }}</p>
+        {% if p.quote %}
+        <blockquote>&ldquo;{{ p.quote }}&rdquo;</blockquote>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% elif interview.status == "done" %}
+<p class="empty">No pain points were identified in this transcript.</p>
+{% endif %}
+
+{% if interview.raw_text %}
+<details class="transcript">
+    <summary>View raw transcript</summary>
+    <pre>{{ interview.raw_text }}</pre>
+</details>
+{% endif %}
+
+<form action="/interviews/{{ interview.id }}/delete" method="post"
+      onsubmit="return confirm('Delete this interview and its pain points?');">
+    <button type="submit" class="danger">Delete interview</button>
+</form>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Insights{% endblock %}
+{% block content %}
+<h1>Cross-interview insights</h1>
+<p class="lede">Aggregated across {{ done_count }} processed interview{{ "" if done_count == 1 else "s" }}.</p>
+
+{% if not rollups %}
+<p class="empty">No processed interviews yet. <a href="/">Upload some</a> to see themes here.</p>
+{% else %}
+
+<section class="card">
+    <h2>Top themes by impact</h2>
+    <p class="hint">Impact = mention count &times; average severity.</p>
+    <div class="bar-chart">
+        {% set max_impact = rollups[0].impact_score if rollups else 1 %}
+        {% for r in rollups %}
+        <div class="bar-row">
+            <div class="bar-label">{{ r.theme }}</div>
+            <div class="bar-track">
+                <div class="bar-fill" style="width: {{ (r.impact_score / max_impact * 100) if max_impact else 0 }}%;"></div>
+            </div>
+            <div class="bar-meta">{{ r.mention_count }}x &middot; sev {{ "%.1f"|format(r.avg_severity) }} &middot; {{ r.interview_count }} interview{{ "" if r.interview_count == 1 else "s" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="card">
+    <h2>Representative quotes</h2>
+    {% for r in rollups[:6] %}
+    <div class="theme-block">
+        <h3>{{ r.theme }}</h3>
+        {% for q in r.top_quotes %}
+        <blockquote>&ldquo;{{ q }}&rdquo;</blockquote>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</section>
+
+<section class="card">
+    <div class="report-header">
+        <h2>Executive insights report</h2>
+        <form action="/insights/generate" method="post">
+            <button type="submit">Generate fresh report</button>
+        </form>
+    </div>
+    {% if report %}
+    <p class="hint">Generated {{ report.generated_at.strftime("%Y-%m-%d %H:%M") }} from {{ report.interview_count }} interview(s).</p>
+    <div class="report-body">{{ report_html|safe }}</div>
+    {% else %}
+    <p class="empty">No report generated yet.</p>
+    {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

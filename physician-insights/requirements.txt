@@ -1,0 +1,15 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.1
+sqlalchemy>=2.0.30
+python-dotenv>=1.0.1
+jinja2>=3.1.4
+python-multipart>=0.0.9
+anthropic>=0.69.0
+pydantic>=2.7.0
+python-docx>=1.1.2
+pypdf>=4.3.0
+markdown>=3.6
+
+# Optional, for audio transcription (pick one or set OPENAI_API_KEY instead):
+# openai>=1.40.0        # Whisper API backend (needs OPENAI_API_KEY)
+# faster-whisper>=1.0.3 # local/offline backend, no API key needed

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Upload Interviews{% endblock %}
+{% block content %}
+<h1>Upload physician interviews</h1>
+<p class="lede">
+    Upload one or many transcripts (.txt, .md, .docx, .pdf) or audio recordings
+    (.mp3, .wav, .m4a, .mp4, .webm, .ogg). Each is parsed/transcribed and sent to
+    Claude to extract pain points, themes, and a summary.
+</p>
+
+<form action="/upload" method="post" enctype="multipart/form-data" class="card">
+    <label>
+        Files
+        <input type="file" name="files" multiple required
+               accept=".txt,.md,.docx,.pdf,.mp3,.wav,.m4a,.mp4,.webm,.ogg">
+    </label>
+
+    <div class="form-row">
+        <label>
+            Specialty (optional, applied to all files in this batch)
+            <input type="text" name="specialty" placeholder="e.g. Family Medicine">
+        </label>
+        <label>
+            Physician name (optional - leave blank to anonymize)
+            <input type="text" name="physician_name" placeholder="e.g. Dr. Smith">
+        </label>
+    </div>
+
+    <button type="submit">Upload &amp; analyze</button>
+</form>
+
+<p class="hint">
+    Processing happens synchronously per file, so a large batch may take a while
+    to redirect - each upload calls Claude once per interview.
+</p>
+{% endblock %}
